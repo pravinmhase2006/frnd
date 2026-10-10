@@ -1,0 +1,37 @@
+{
+  "name": "frnd-backend",
+  "version": "1.0.0",
+  "description": "FRND Audio Chat & Calling Backend in Node.js & TypeScript",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed": "tsx src/seed/seedData.ts"
+  },
+  "keywords": [
+    "frnd",
+    "audio-chat",
+    "backend",
+    "typescript",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.3.4",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}
