@@ -6,13 +6,14 @@ import {
   getInstantMatch,
   healthCheck,
 } from '../controllers/userController.js';
+import { optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
 
 router.get('/health', healthCheck);
-router.post('/users', createUser);
-router.get('/users', getUsers);
-router.get('/users/match', getInstantMatch);
-router.get('/users/:id', getUserById);
+router.post('/users', optionalAuth, createUser);
+router.get('/users', optionalAuth, getUsers);
+router.get('/users/match', optionalAuth, getInstantMatch);
+router.get('/users/:id', optionalAuth, getUserById);
 
 export default router;

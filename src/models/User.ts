@@ -2,7 +2,10 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IUser extends Document {
   name: string;
-  phone: string;
+  phone?: string;
+  email: string;
+  emailVerificationCode?: string;
+  emailVerificationExpires?: Date;
   age: number;
   role: 'female' | 'male';
   avatar: string;
@@ -30,11 +33,24 @@ const userSchema = new Schema<IUser>(
       required: true,
       trim: true,
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      sparse: true,
+    },
     phone: {
       type: String,
-      required: true,
-      unique: true,
       trim: true,
+      sparse: true,
+    },
+    emailVerificationCode: {
+      type: String,
+      default: null,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      default: null,
     },
     age: {
       type: Number,

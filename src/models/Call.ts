@@ -7,6 +7,9 @@ export interface ICall extends Document {
   durationSeconds: number;
   coinsDeducted: number;
   ratePerMinute: number;
+  rating?: number;
+  review?: string;
+  compliments?: string[];
   startedAt?: Date;
   endedAt?: Date;
   createdAt: Date;
@@ -41,6 +44,18 @@ const callSchema = new Schema<ICall>(
     ratePerMinute: {
       type: Number,
       default: 20,
+    },
+    rating: {
+      type: Number,
+      default: null,
+    },
+    review: {
+      type: String,
+      default: '',
+    },
+    compliments: {
+      type: [String],
+      default: [],
     },
     startedAt: {
       type: Date,

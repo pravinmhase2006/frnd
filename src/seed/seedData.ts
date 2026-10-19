@@ -11,6 +11,7 @@ const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/frnd_app'
 const sampleUsers = [
   {
     name: 'Ananya Sharma',
+    email: 'ananya@frnd.app',
     phone: '+919876543210',
     age: 22,
     role: 'female',
@@ -29,6 +30,7 @@ const sampleUsers = [
   },
   {
     name: 'Priya Patel',
+    email: 'priya@frnd.app',
     phone: '+919876543211',
     age: 23,
     role: 'female',
@@ -47,6 +49,7 @@ const sampleUsers = [
   },
   {
     name: 'Sneha Roy',
+    email: 'sneha@frnd.app',
     phone: '+919876543212',
     age: 21,
     role: 'female',
@@ -65,6 +68,7 @@ const sampleUsers = [
   },
   {
     name: 'Riya Sen',
+    email: 'riya@frnd.app',
     phone: '+919876543213',
     age: 24,
     role: 'female',
@@ -83,6 +87,7 @@ const sampleUsers = [
   },
   {
     name: 'Rahul Verma',
+    email: 'rahul@frnd.app',
     phone: '+919988776655',
     age: 25,
     role: 'male',
