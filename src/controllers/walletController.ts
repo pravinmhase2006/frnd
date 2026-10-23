@@ -133,15 +133,19 @@ export const requestWithdrawal = async (req: Request, res: Response): Promise<Re
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (user.earnings < withdrawalAmount) {
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: user._id, earnings: { $gte: withdrawalAmount } },
+      { $inc: { earnings: -withdrawalAmount } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
       return res.status(400).json({
         success: false,
         message: `Insufficient earnings balance. Available: ₹${user.earnings.toFixed(2)}, Requested: ₹${withdrawalAmount.toFixed(2)}`,
       });
     }
 
-    user.earnings -= withdrawalAmount;
-    await user.save();
 
     const tx = await Transaction.create({
       userId: user._id,
@@ -155,7 +159,7 @@ export const requestWithdrawal = async (req: Request, res: Response): Promise<Re
       success: true,
       message: `₹${withdrawalAmount} withdrawal to ${upiId} processed successfully!`,
       data: {
-        remainingEarnings: user.earnings,
+        remainingEarnings: updatedUser.earnings,
         transaction: tx,
       },
     });

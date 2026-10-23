@@ -37,12 +37,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       trim: true,
       lowercase: true,
-      sparse: true,
     },
     phone: {
       type: String,
       trim: true,
-      sparse: true,
     },
     emailVerificationCode: {
       type: String,
@@ -126,4 +124,10 @@ const userSchema = new Schema<IUser>(
   },
 );
 
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
+userSchema.index({ phone: 1 }, { unique: true, sparse: true });
+userSchema.index({ role: 1, isOnline: 1, rating: -1 });
+userSchema.index({ rating: -1 });
+
 export const User = mongoose.model<IUser>('User', userSchema);
+

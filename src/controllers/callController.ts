@@ -68,7 +68,7 @@ export const requestCall = async (req: Request, res: Response): Promise<Response
       };
 
       io.to(`user_${rId}`).emit('incoming_call_request', callData);
-      io.broadcast.emit('incoming_call_request', callData);
+      io.emit('incoming_call_request', callData);
     }
 
     return res.status(201).json({

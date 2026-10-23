@@ -69,4 +69,9 @@ const callSchema = new Schema<ICall>(
   },
 );
 
+callSchema.index({ callerId: 1, createdAt: -1 });
+callSchema.index({ receiverId: 1, createdAt: -1 });
+callSchema.index({ status: 1 });
+
 export const Call = mongoose.model<ICall>('Call', callSchema);
+
