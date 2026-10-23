@@ -6,6 +6,8 @@ export interface IUser extends Document {
   email: string;
   emailVerificationCode?: string;
   emailVerificationExpires?: Date;
+  phoneVerificationCode?: string;
+  phoneVerificationExpires?: Date;
   age: number;
   role: 'female' | 'male';
   avatar: string;
@@ -47,6 +49,14 @@ const userSchema = new Schema<IUser>(
       default: null,
     },
     emailVerificationExpires: {
+      type: Date,
+      default: null,
+    },
+    phoneVerificationCode: {
+      type: String,
+      default: null,
+    },
+    phoneVerificationExpires: {
       type: Date,
       default: null,
     },

@@ -3,6 +3,7 @@ import { User } from '../models/User.js';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { WhatsAppService } from '../services/whatsappService.js';
 
 // Send Email Verification Code
 export const sendEmailVerification = async (req: Request, res: Response): Promise<Response> => {
@@ -123,7 +124,7 @@ export const verifyEmail = async (req: Request, res: Response): Promise<Response
   }
 };
 
-// Send OTP
+// Send OTP via WhatsApp
 export const sendOtp = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { phone } = req.body;
@@ -131,14 +132,32 @@ export const sendOtp = async (req: Request, res: Response): Promise<Response> =>
       return res.status(400).json({ success: false, message: 'Phone number is required.' });
     }
 
-    const otp = '1234';
+    const cleanPhone = String(phone).trim();
+    const otp = WhatsAppService.generateOtp();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+
+    // Store in database for verification
+    let user = await User.findOne({ phone: cleanPhone });
+    if (user) {
+      user.phoneVerificationCode = otp;
+      user.phoneVerificationExpires = expiresAt;
+      await user.save();
+    }
+
+    // Dispatch via WhatsApp Gateway
+    await WhatsAppService.sendOtp(cleanPhone, otp);
+
     return res.status(200).json({
       success: true,
-      message: `OTP sent successfully to ${phone}`,
-      data: { phone, otpHint: otp },
+      message: `Verification code sent to your WhatsApp (${cleanPhone})!`,
+      data: {
+        phone: cleanPhone,
+        channel: 'whatsapp',
+        otpHint: otp,
+      },
     });
   } catch (error) {
-    console.error('Send OTP error:', error);
+    console.error('Send WhatsApp OTP error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
@@ -151,15 +170,26 @@ export const verifyOtp = async (req: Request, res: Response): Promise<Response> 
       return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
     }
 
-    if (otp !== '1234' && otp.length < 4) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+    const cleanPhone = String(phone).trim();
+    const cleanOtp = String(otp).trim();
+    let user = await User.findOne({ phone: cleanPhone });
+
+    // Validate OTP against stored code or master dev code (1234)
+    const isMasterDemoOtp = cleanOtp === '1234';
+    const isStoredOtpValid = user?.phoneVerificationCode && user.phoneVerificationCode === cleanOtp;
+
+    if (!isMasterDemoOtp && !isStoredOtpValid) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please check your WhatsApp.' });
     }
 
-    let user = await User.findOne({ phone });
+    if (isStoredOtpValid && user?.phoneVerificationExpires && user.phoneVerificationExpires < new Date()) {
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new code on WhatsApp.' });
+    }
+
     if (!user) {
       user = await User.create({
-        phone,
-        name: name || (role === 'female' ? 'New Creator' : 'New Friend'),
+        phone: cleanPhone,
+        name: name || (role === 'female' ? 'New Host' : 'New Friend'),
         age: age ? Number(age) : 21,
         role: role === 'female' ? 'female' : 'male',
         isVerified: true,
@@ -181,9 +211,9 @@ export const verifyOtp = async (req: Request, res: Response): Promise<Response> 
         modified = true;
       }
       user.isOnline = true;
-      if (modified) {
-        await user.save();
-      }
+      user.phoneVerificationCode = undefined;
+      user.phoneVerificationExpires = undefined;
+      await user.save();
     }
 
     const token = jwt.sign(
@@ -194,14 +224,14 @@ export const verifyOtp = async (req: Request, res: Response): Promise<Response> 
 
     return res.status(200).json({
       success: true,
-      message: 'Login successful',
+      message: 'WhatsApp phone verification successful',
       data: {
         token,
         user,
       },
     });
   } catch (error) {
-    console.error('Verify OTP error:', error);
+    console.error('Verify WhatsApp OTP error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
