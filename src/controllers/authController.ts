@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { WhatsAppService } from '../services/whatsappService.js';
+import { OtpService } from '../modules/otp/otp.service.js';
 
 // Send Email Verification Code
 export const sendEmailVerification = async (req: Request, res: Response): Promise<Response> => {
@@ -124,41 +125,67 @@ export const verifyEmail = async (req: Request, res: Response): Promise<Response
   }
 };
 
-// Send OTP via WhatsApp
+// Helper to parse and strictly validate Indian mobile numbers (+91)
+const parseIndianMobile = (rawPhone: string): { valid: boolean; formatted: string; raw: string; error?: string } => {
+  const digits = String(rawPhone || '').replace(/\D/g, '');
+  let tenDigit = '';
+  if (digits.length === 10) {
+    tenDigit = digits;
+  } else if (digits.length === 12 && digits.startsWith('91')) {
+    tenDigit = digits.slice(2);
+  } else {
+    return {
+      valid: false,
+      formatted: '',
+      raw: rawPhone,
+      error: 'Please enter a valid 10-digit Indian mobile number (+91).',
+    };
+  }
+
+  // Indian mobile numbers must start with 6, 7, 8, or 9
+  if (!/^[6-9]\d{9}$/.test(tenDigit)) {
+    return {
+      valid: false,
+      formatted: '',
+      raw: rawPhone,
+      error: 'Indian mobile numbers must begin with 6, 7, 8, or 9.',
+    };
+  }
+
+  return {
+    valid: true,
+    formatted: `+91${tenDigit}`,
+    raw: tenDigit,
+  };
+};
+
+// Send OTP to Indian Mobile
 export const sendOtp = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { phone } = req.body;
-    if (!phone) {
-      return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    const phoneCheck = parseIndianMobile(phone);
+
+    if (!phoneCheck.valid) {
+      return res.status(400).json({
+        success: false,
+        message: phoneCheck.error,
+      });
     }
 
-    const cleanPhone = String(phone).trim();
-    const otp = WhatsAppService.generateOtp();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+    const result = await OtpService.sendOtp(phoneCheck.formatted);
 
-    // Store in database for verification
-    let user = await User.findOne({ phone: cleanPhone });
-    if (user) {
-      user.phoneVerificationCode = otp;
-      user.phoneVerificationExpires = expiresAt;
-      await user.save();
-    }
-
-    // Dispatch via WhatsApp Gateway
-    await WhatsAppService.sendOtp(cleanPhone, otp);
-
-    return res.status(200).json({
-      success: true,
-      message: `Verification code sent to your WhatsApp (${cleanPhone})!`,
+    return res.status(result.statusCode).json({
+      success: result.success,
+      message: result.message,
       data: {
-        phone: cleanPhone,
-        channel: 'whatsapp',
-        otpHint: otp,
+        phone: phoneCheck.formatted,
+        expiresInSeconds: result.expiresInSeconds,
+        cooldownSeconds: result.cooldownSeconds,
       },
     });
-  } catch (error) {
-    console.error('Send WhatsApp OTP error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error: any) {
+    console.error('Send Indian Mobile OTP error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error while sending OTP.' });
   }
 };
 
@@ -170,26 +197,26 @@ export const verifyOtp = async (req: Request, res: Response): Promise<Response> 
       return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
     }
 
-    const cleanPhone = String(phone).trim();
-    const cleanOtp = String(otp).trim();
+    const phoneCheck = parseIndianMobile(phone);
+    if (!phoneCheck.valid) {
+      return res.status(400).json({ success: false, message: phoneCheck.error });
+    }
+
+    const verifyResult = await OtpService.verifyOtp(phoneCheck.formatted, String(otp).trim());
+    if (!verifyResult.success) {
+      return res.status(verifyResult.statusCode).json({
+        success: false,
+        message: verifyResult.message,
+      });
+    }
+
+    const cleanPhone = phoneCheck.formatted;
     let user = await User.findOne({ phone: cleanPhone });
-
-    // Validate OTP against stored code or master dev code (1234)
-    const isMasterDemoOtp = cleanOtp === '1234';
-    const isStoredOtpValid = user?.phoneVerificationCode && user.phoneVerificationCode === cleanOtp;
-
-    if (!isMasterDemoOtp && !isStoredOtpValid) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please check your WhatsApp.' });
-    }
-
-    if (isStoredOtpValid && user?.phoneVerificationExpires && user.phoneVerificationExpires < new Date()) {
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new code on WhatsApp.' });
-    }
 
     if (!user) {
       user = await User.create({
         phone: cleanPhone,
-        name: name || (role === 'female' ? 'New Host' : 'New Friend'),
+        name: name || (role === 'female' ? 'Host' : 'Friend'),
         age: age ? Number(age) : 21,
         role: role === 'female' ? 'female' : 'male',
         isVerified: true,
@@ -197,22 +224,11 @@ export const verifyOtp = async (req: Request, res: Response): Promise<Response> 
         coins: role === 'female' ? 50 : 250,
       });
     } else {
-      let modified = false;
-      if (name && user.name !== name) {
-        user.name = name;
-        modified = true;
-      }
-      if (role && (role === 'female' || role === 'male') && user.role !== role) {
-        user.role = role;
-        modified = true;
-      }
-      if (age && user.age !== Number(age)) {
-        user.age = Number(age);
-        modified = true;
-      }
+      user.isVerified = true;
       user.isOnline = true;
-      user.phoneVerificationCode = undefined;
-      user.phoneVerificationExpires = undefined;
+      if (name && user.name !== name) user.name = name;
+      if (role && (role === 'female' || role === 'male')) user.role = role;
+      if (age && user.age !== Number(age)) user.age = Number(age);
       await user.save();
     }
 
@@ -224,15 +240,25 @@ export const verifyOtp = async (req: Request, res: Response): Promise<Response> 
 
     return res.status(200).json({
       success: true,
-      message: 'WhatsApp phone verification successful',
+      message: 'Mobile OTP verification successful!',
       data: {
         token,
-        user,
+        user: {
+          id: user._id,
+          name: user.name,
+          phone: user.phone,
+          role: user.role,
+          avatar: user.avatar,
+          age: user.age,
+          coins: user.coins,
+          earningsRupees: user.earnings,
+          isOnline: user.isOnline,
+        },
       },
     });
-  } catch (error) {
-    console.error('Verify WhatsApp OTP error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error: any) {
+    console.error('Verify Indian Mobile OTP error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error while verifying OTP.' });
   }
 };
 
