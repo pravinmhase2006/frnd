@@ -13,6 +13,8 @@ import callRoutes from './routes/callRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import { User } from './models/User.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './config/swagger.js';
 
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
@@ -235,6 +237,18 @@ io.on('connection', (socket: Socket) => {
   });
 });
 
+// Swagger UI Documentation
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDocument, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'FRND API Docs - Swagger',
+  })
+);
+app.get('/docs', (_req: Request, res: Response) => res.redirect('/api-docs'));
+app.get('/api-docs.json', (_req: Request, res: Response) => res.json(swaggerDocument));
+
 // Root Information Endpoint
 app.get('/', (_req: Request, res: Response) => {
   res.json({
@@ -242,7 +256,9 @@ app.get('/', (_req: Request, res: Response) => {
     status: 'running',
     runtime: 'Node.js + TypeScript',
     version: '1.0.0',
+    documentation: '/api-docs',
     endpoints: {
+      documentation: ['/api-docs', '/docs', '/api-docs.json'],
       auth: ['/api/auth/send-email-code', '/api/auth/verify-email', '/api/auth/send-otp', '/api/auth/verify-otp', '/api/auth/me'],
       users: ['/api/users', '/api/users/match', '/api/users/:id'],
       chats: ['/api/chats', '/api/chats/between/:user1/:user2', '/api/chats/:id/messages', '/api/chats/messages'],
