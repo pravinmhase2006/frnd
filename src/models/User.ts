@@ -18,6 +18,13 @@ export interface IUser extends Document {
   isVerified: boolean;
   isOnline: boolean;
   status: 'active' | 'pending' | 'blocked';
+  blockedUsers: mongoose.Types.ObjectId[];
+  privacySettings: {
+    hideOnlineStatus: boolean;
+    allowCalls: boolean;
+    allowMessages: boolean;
+  };
+  isDeleted: boolean;
   coins: number;
   earnings: number;
   callRate: number;
@@ -103,6 +110,20 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ['active', 'pending', 'blocked'],
       default: 'active',
+    },
+    blockedUsers: [{
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: [],
+    }],
+    privacySettings: {
+      hideOnlineStatus: { type: Boolean, default: false },
+      allowCalls: { type: Boolean, default: true },
+      allowMessages: { type: Boolean, default: true },
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
     },
     coins: {
       type: Number,

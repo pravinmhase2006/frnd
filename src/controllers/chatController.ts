@@ -2,7 +2,12 @@ import { Request, Response } from 'express';
 import { Chat } from '../models/Chat.js';
 import { User } from '../models/User.js';
 import { Transaction } from '../models/Transaction.js';
+import { sanitizeUser } from './userController.js';
 import mongoose from 'mongoose';
+
+// Regex to detect phone numbers and emails to prevent contact leakage
+const PHONE_REGEX = /\b(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b|\b\d{10}\b/;
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
 export const getChats = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -14,10 +19,19 @@ export const getChats = async (req: Request, res: Response): Promise<Response> =
     }
 
     const chats = await Chat.find(query)
-      .populate('participants', 'name avatar role isOnline rating callRate')
+      .populate('participants', 'name avatar role isOnline rating callRate privacySettings')
       .sort({ updatedAt: -1 });
 
-    return res.status(200).json({ success: true, count: chats.length, data: chats });
+    // Sanitize participants in all chat listings
+    const sanitizedChats = chats.map((chat) => {
+      const c = chat.toObject();
+      if (c.participants && Array.isArray(c.participants)) {
+        c.participants = c.participants.map((p: any) => sanitizeUser(p));
+      }
+      return c;
+    });
+
+    return res.status(200).json({ success: true, count: sanitizedChats.length, data: sanitizedChats });
   } catch (error) {
     console.error('Get chats error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
@@ -33,7 +47,7 @@ export const getMessagesByChatId = async (req: Request, res: Response): Promise<
       return res.status(200).json({ success: true, data: firstChat ? firstChat.messages : [] });
     }
 
-    const chat = await Chat.findById(id).populate('participants', 'name avatar isOnline');
+    const chat = await Chat.findById(id).populate('participants', 'name avatar role isOnline');
 
     if (!chat) {
       return res.status(404).json({ success: false, message: 'Chat not found' });
@@ -54,6 +68,14 @@ export const sendMessage = async (req: Request, res: Response): Promise<Response
 
     if (!text && parsedGiftCoins <= 0) {
       return res.status(400).json({ success: false, message: 'Text or gift is required.' });
+    }
+
+    // Safety and privacy filter: Block contact info sharing
+    if (text && (PHONE_REGEX.test(text) || EMAIL_REGEX.test(text))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sharing phone numbers, email addresses, or external contact details is strictly prohibited for female safety and privacy.',
+      });
     }
 
     let chat;
@@ -80,6 +102,26 @@ export const sendMessage = async (req: Request, res: Response): Promise<Response
     } else if (receiverName) {
       receiverUser = await User.findOne({ name: receiverName });
       if (receiverUser) rId = receiverUser._id;
+    }
+
+    // Enforcement: Check blocked relationship
+    if (senderUser && receiverUser) {
+      const isBlockedByReceiver = receiverUser.blockedUsers?.some((b: any) => b.equals(senderUser._id));
+      const isBlockedBySender = senderUser.blockedUsers?.some((b: any) => b.equals(receiverUser._id));
+
+      if (isBlockedByReceiver || isBlockedBySender) {
+        return res.status(403).json({
+          success: false,
+          message: 'Communication is blocked between these accounts.',
+        });
+      }
+
+      if (receiverUser.privacySettings?.allowMessages === false) {
+        return res.status(403).json({
+          success: false,
+          message: 'This user is currently not accepting new messages.',
+        });
+      }
     }
 
     // Handle Gift and Coin Economy
@@ -152,9 +194,13 @@ export const sendMessage = async (req: Request, res: Response): Promise<Response
       ? new mongoose.Types.ObjectId(String(sId))
       : new mongoose.Types.ObjectId();
 
+    const cleanSenderName = senderUser?.role === 'female'
+      ? senderUser.name.split(' ')[0]
+      : (senderName || 'Caller');
+
     const newMessage = {
       senderId: finalSenderId,
-      senderName: senderName || 'You',
+      senderName: cleanSenderName,
       text: text || `Sent a gift (${parsedGiftCoins} coins) 🎁`,
       type: (type as 'text' | 'gift' | 'audio' | 'system') || (parsedGiftCoins > 0 ? 'gift' : 'text'),
       giftCoins: parsedGiftCoins,
@@ -167,7 +213,7 @@ export const sendMessage = async (req: Request, res: Response): Promise<Response
     chat.lastMessageTime = new Date();
     await chat.save();
 
-    // Broadcast via Socket.IO
+    // Broadcast via Socket.IO safely without leaking receiver or sender private data
     const io = req.app.get('io');
     if (io) {
       io.emit('new_message', { chatId: chat._id, message: newMessage });
@@ -217,19 +263,37 @@ export const getChatBetween = async (req: Request, res: Response): Promise<Respo
 
     let chat = await Chat.findOne({
       participants: { $all: [u1Id, u2Id] },
-    }).populate('participants', 'name avatar role isOnline rating callRate');
+    }).populate('participants', 'name avatar role isOnline rating callRate privacySettings');
 
     if (!chat) {
       chat = await Chat.create({
         participants: [u1Id, u2Id],
         messages: [],
       });
-      chat = await Chat.findById(chat._id).populate('participants', 'name avatar role isOnline rating callRate');
+      chat = await Chat.findById(chat._id).populate('participants', 'name avatar role isOnline rating callRate privacySettings');
     }
 
-    return res.status(200).json({ success: true, data: chat });
+    const c = chat?.toObject();
+    if (c && c.participants) {
+      c.participants = c.participants.map((p: any) => sanitizeUser(p));
+    }
+
+    return res.status(200).json({ success: true, data: c });
   } catch (error) {
     console.error('Get chat between error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+export const deleteChat = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id } = req.params;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      await Chat.findByIdAndDelete(id);
+    }
+    return res.status(200).json({ success: true, message: 'Conversation deleted successfully.' });
+  } catch (error) {
+    console.error('Delete chat error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

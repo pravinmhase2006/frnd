@@ -6,6 +6,7 @@ import {
   declineCall,
   getCallHistory,
   rateCall,
+  getIceServers,
 } from '../controllers/callController.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -17,6 +18,7 @@ import {
 
 const router = Router();
 
+router.get('/calls/ice-servers', getIceServers);
 router.post('/calls/request', optionalAuth, validate(requestCallSchema), requestCall);
 router.post('/calls/:id/end', optionalAuth, validate(endCallSchema), endCall);
 router.post('/calls/:id/accept', optionalAuth, acceptCall);

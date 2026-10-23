@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { getChats, getMessagesByChatId, sendMessage, getChatBetween } from '../controllers/chatController.js';
+import {
+  getChats,
+  getMessagesByChatId,
+  sendMessage,
+  getChatBetween,
+  deleteChat,
+} from '../controllers/chatController.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { sendMessageSchema } from '../validation/schemas.js';
@@ -10,5 +16,6 @@ router.get('/chats', optionalAuth, getChats);
 router.get('/chats/between/:user1/:user2', optionalAuth, getChatBetween);
 router.get('/chats/:id/messages', optionalAuth, getMessagesByChatId);
 router.post('/chats/messages', optionalAuth, validate(sendMessageSchema), sendMessage);
+router.delete('/chats/:id', optionalAuth, deleteChat);
 
 export default router;
