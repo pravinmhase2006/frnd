@@ -124,6 +124,63 @@ export const swaggerDocument = {
       },
     },
 
+    // ==================== MOBILE OTP SERVICE ====================
+    '/api/otp/send': {
+      post: {
+        summary: 'Send Mobile OTP (SMS or WhatsApp)',
+        description: 'Dispatches OTP to mobile number via configured SMS gateway (Fast2SMS/Twilio), personal WhatsApp gateway, or console.',
+        tags: ['Mobile OTP Service'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['phone'],
+                properties: {
+                  phone: { type: 'string', example: '+919876543210' },
+                  channel: { type: 'string', enum: ['sms', 'whatsapp'], default: 'sms' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'OTP dispatched successfully' },
+          429: { description: 'Rate limit: please wait 45 seconds' },
+        },
+      },
+    },
+    '/api/otp/verify': {
+      post: {
+        summary: 'Verify Mobile OTP & Authenticate',
+        description: 'Verifies the OTP code submitted by the user and returns JWT token & user profile.',
+        tags: ['Mobile OTP Service'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['phone', 'otp'],
+                properties: {
+                  phone: { type: 'string', example: '+919876543210' },
+                  otp: { type: 'string', example: '1234' },
+                  name: { type: 'string', example: 'Pravin' },
+                  role: { type: 'string', enum: ['male', 'female'], default: 'male' },
+                  age: { type: 'number', example: 22 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'OTP verified, returns JWT and user profile' },
+          400: { description: 'Invalid or expired OTP' },
+        },
+      },
+    },
+
     // ==================== AUTH ====================
     '/api/auth/send-email-code': {
       post: {

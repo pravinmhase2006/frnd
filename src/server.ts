@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import callRoutes from './routes/callRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
+import otpRoutes from './modules/otp/otp.routes.js';
 import { User } from './models/User.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import swaggerUi from 'swagger-ui-express';
@@ -259,6 +260,7 @@ app.get('/', (_req: Request, res: Response) => {
     documentation: '/api-docs',
     endpoints: {
       documentation: ['/api-docs', '/docs', '/api-docs.json'],
+      otp: ['/api/otp/send', '/api/otp/verify'],
       auth: ['/api/auth/send-email-code', '/api/auth/verify-email', '/api/auth/send-otp', '/api/auth/verify-otp', '/api/auth/me'],
       users: ['/api/users', '/api/users/match', '/api/users/:id'],
       chats: ['/api/chats', '/api/chats/between/:user1/:user2', '/api/chats/:id/messages', '/api/chats/messages'],
@@ -290,6 +292,7 @@ app.get('/api/readiness', (_req: Request, res: Response) => {
 });
 
 // Mount Routes under /api
+app.use('/api/otp', authLimiter, otpRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', chatRoutes);
