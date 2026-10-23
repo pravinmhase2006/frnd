@@ -160,6 +160,70 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  // Live Audio Room Multi-Speaker & Soundboard Broadcast
+  socket.on('room_sfx', (data: any) => {
+    if (data.roomId) {
+      socket.to(data.roomId).emit('room_sfx', data);
+    } else {
+      socket.broadcast.emit('room_sfx', data);
+    }
+  });
+
+  socket.on('raise_hand', (data: any) => {
+    if (data.roomId) {
+      socket.to(data.roomId).emit('hand_raised', data);
+    } else {
+      socket.broadcast.emit('hand_raised', data);
+    }
+  });
+
+  socket.on('promote_speaker', (data: any) => {
+    if (data.roomId) {
+      io.to(data.roomId).emit('promoted_to_speaker', data);
+    }
+    if (data.userId) {
+      io.to(`user_${data.userId}`).emit('promoted_to_speaker', data);
+    }
+  });
+
+  socket.on('remove_speaker', (data: any) => {
+    if (data.roomId) {
+      io.to(data.roomId).emit('removed_from_stage', data);
+    }
+    if (data.userId) {
+      io.to(`user_${data.userId}`).emit('removed_from_stage', data);
+    }
+  });
+
+  // Live In-Room Chat Stream with Anti-Leak Filter
+  socket.on('room_chat_message', (data: any) => {
+    const phoneRegex = /\b(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b|\b\d{10}\b/;
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
+    if (data.text && (phoneRegex.test(data.text) || emailRegex.test(data.text))) {
+      socket.emit('room_chat_error', {
+        message: 'Sharing phone numbers or emails is strictly prohibited in live room chat.',
+      });
+      return;
+    }
+
+    const payload = {
+      id: `comment_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      roomId: data.roomId,
+      senderId: data.senderId,
+      senderName: data.senderName ? data.senderName.trim().split(' ')[0] : 'User',
+      role: data.role || 'caller',
+      text: data.text,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (data.roomId) {
+      io.to(data.roomId).emit('room_chat_message', payload);
+    } else {
+      io.emit('room_chat_message', payload);
+    }
+  });
+
   socket.on('disconnect', () => {
     const disconnectedUserId = onlineUsers.get(socket.id);
     if (disconnectedUserId) {

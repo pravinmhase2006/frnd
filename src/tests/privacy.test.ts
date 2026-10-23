@@ -2,18 +2,18 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../server.js';
 import { User } from '../models/User.js';
-import mongoose from 'mongoose';
 
 describe('Privacy-First & Anti-Abuse Safety Tests', () => {
   let femaleHost: any;
   let maleCaller: any;
 
   beforeAll(async () => {
-    // Seed test female host
+    const ts = Date.now().toString().slice(-6);
+    // Seed test female host with unique phone/email
     femaleHost = await User.create({
       name: 'Ananya Sharma',
-      phone: '+919876543210',
-      email: 'ananya.real@example.com',
+      phone: `+91789${ts}1`,
+      email: `ananya.real.${ts}@example.com`,
       age: 22,
       role: 'female',
       avatar: 'https://images.unsplash.com/photo-real-girl.jpg',
@@ -24,11 +24,11 @@ describe('Privacy-First & Anti-Abuse Safety Tests', () => {
       status: 'active',
     });
 
-    // Seed test male caller
+    // Seed test male caller with unique phone/email
     maleCaller = await User.create({
       name: 'Rohan Verma',
-      phone: '+919123456789',
-      email: 'rohan.caller@example.com',
+      phone: `+91789${ts}2`,
+      email: `rohan.caller.${ts}@example.com`,
       age: 24,
       role: 'male',
       avatar: 'https://images.unsplash.com/photo-boy.jpg',
@@ -174,8 +174,8 @@ describe('Privacy-First & Anti-Abuse Safety Tests', () => {
   it('9. DELETE /api/users/me: Permanent account deletion and data wiping', async () => {
     const tempUser = await User.create({
       name: 'Temp Deletable User',
-      phone: '+919999988888',
-      email: 'delete.me@privacy.test',
+      phone: `+91799${Date.now().toString().slice(-6)}8`,
+      email: `delete.me.${Date.now()}@privacy.test`,
       age: 23,
       role: 'male',
       avatar: 'https://test.com/temp.jpg',
